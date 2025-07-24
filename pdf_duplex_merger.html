@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>PDF 雙面合併神器</title>
+  <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+  <style>
+    body {
+      font-family: "微軟正黑體", sans-serif;
+      background: #f9f9fc;
+      text-align: center;
+      padding: 40px;
+    }
+
+    h2 {
+      color: #4a4a8a;
+    }
+
+    .drop-zone {
+      border: 3px dashed #4a4a8a;
+      border-radius: 10px;
+      padding: 30px;
+      margin: 20px auto;
+      width: 80%;
+      max-width: 500px;
+      background: #fff;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .drop-zone.dragover {
+      background-color: #e6ecff;
+    }
+
+    .file-list {
+      margin: 10px auto;
+      font-size: 14px;
+      color: #333;
+    }
+
+    button {
+      background: #4a4a8a;
+      color: white;
+      padding: 12px 30px;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      margin-top: 20px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background: #2d2d6a;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>PDF 雙面合併神器</h2>
+  <div id="frontDrop" class="drop-zone">拖曳 <b>正面 PDF</b> 到這裡，或點我上傳</div>
+  <div class="file-list" id="frontName">尚未上傳正面檔案</div>
+
+  <div id="backDrop" class="drop-zone">拖曳 <b>反面 PDF</b> 到這裡，或點我上傳</div>
+  <div class="file-list" id="backName">尚未上傳反面檔案</div>
+
+  <button onclick="mergePDFs()">合併PDF 並下載</button>
+
+  <script>
+    let frontFile = null;
+    let backFile = null;
+
+    function setupDropZone(dropId, nameId, isFront) {
+      const dropZone = document.getElementById(dropId);
+      const nameDisplay = document.getElementById(nameId);
+
+      dropZone.addEventListener("click", () => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "application/pdf";
+        input.onchange = (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            nameDisplay.textContent = `✅ 已上傳：${file.name}`;
+            if (isFront) frontFile = file;
+            else backFile = file;
+          }
+        };
+        input.click();
+      });
+
+      dropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZone.classList.add("dragover");
+      });
+
+      dropZone.addEventListener("dragleave", () => {
+        dropZone.classList.remove("dragover");
+      });
+
+      dropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZone.classList.remove("dragover");
+
+        const file = e.dataTransfer.files[0];
+        if (file && file.type === "application/pdf") {
+          nameDisplay.textContent = `✅ 已上傳：${file.name}`;
+          if (isFront) frontFile = file;
+          else backFile = file;
+        } else {
+          nameDisplay.textContent = "❌ 請上傳 PDF 檔案";
+        }
+      });
+    }
+
+    async function mergePDFs() {
+      if (!frontFile || !backFile) {
+        alert("請先上傳正面與反面 PDF！");
+        return;
+      }
+
+      const frontBytes = await frontFile.arrayBuffer();
+      const backBytes = await backFile.arrayBuffer();
+
+      const frontPdf = await PDFLib.PDFDocument.load(frontBytes);
+      const backPdf = await PDFLib.PDFDocument.load(backBytes);
+      const mergedPdf = await PDFLib.PDFDocument.create();
+
+      const frontPages = await mergedPdf.copyPages(frontPdf, frontPdf.getPageIndices());
+      const backPages = await mergedPdf.copyPages(backPdf, backPdf.getPageIndices());
+
+      const maxLen = Math.max(frontPages.length, backPages.length);
+      for (let i = 0; i < maxLen; i++) {
+        if (i < frontPages.length) mergedPdf.addPage(frontPages[i]);
+        if (i < backPages.length) mergedPdf.addPage(backPages[i]);
+      }
+
+      const mergedBytes = await mergedPdf.save();
+      const blob = new Blob([mergedBytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+
+      const a = document.createElement("a");
+      a.href = url;
+      const frontName = frontFile.name.replace(/\.pdf$/i, "");
+      a.download = `${frontName}_merged.pdf`;
+      // a.download = "flip_merge.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // 初始化拖曳區
+    setupDropZone("frontDrop", "frontName", true);
+    setupDropZone("backDrop", "backName", false);
+  </script>
+</body>
+</html>
