@@ -127,7 +127,9 @@
       const mergedPdf = await PDFLib.PDFDocument.create();
 
       const frontPages = await mergedPdf.copyPages(frontPdf, frontPdf.getPageIndices());
-      const backPages = await mergedPdf.copyPages(backPdf, backPdf.getPageIndices());
+      // const backPages = await mergedPdf.copyPages(backPdf, backPdf.getPageIndices());
+      const backPagesOrig = await mergedPdf.copyPages(backPdf, backPdf.getPageIndices());
+      const backPages = backPagesOrig.reverse(); // 從後往前
 
       const maxLen = Math.max(frontPages.length, backPages.length);
       for (let i = 0; i < maxLen; i++) {
