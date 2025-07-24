@@ -2,12 +2,12 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <title>PDF 雙面合併神器</title>
+  <title>Princess PDF Merge</title>
   <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
   <style>
     body {
       font-family: "微軟正黑體", sans-serif;
-      background: #f9f9fc;
+      background: #f0f4ff;
       text-align: center;
       padding: 40px;
     }
@@ -57,14 +57,14 @@
 </head>
 <body>
 
-  <h2>PDF 雙面合併神器</h2>
-  <div id="frontDrop" class="drop-zone">拖曳 <b>正面 PDF</b> 到這裡，或點我上傳</div>
-  <div class="file-list" id="frontName">尚未上傳正面檔案</div>
+  <h2>PDF 雙面合併神器 💫</h2>
+  <div id="frontDrop" class="drop-zone">拖曳或點我上傳 <b>PDF</b>（單檔或正面）</div>
+  <div class="file-list" id="frontName">尚未上傳</div>
 
-  <div id="backDrop" class="drop-zone">拖曳 <b>反面 PDF</b> 到這裡，或點我上傳</div>
-  <div class="file-list" id="backName">尚未上傳反面檔案</div>
+  <div id="backDrop" class="drop-zone">拖曳或點我上傳 <b>反面 PDF</b>（可選）</div>
+  <div class="file-list" id="backName">尚未上傳</div>
 
-  <button onclick="mergePDFs()">合併PDF 並下載</button>
+  <button onclick="smartMerge()">⚡ 智慧合併 PDF</button>
 
   <script>
     let frontFile = null;
@@ -101,7 +101,6 @@
       dropZone.addEventListener("drop", (e) => {
         e.preventDefault();
         dropZone.classList.remove("dragover");
-
         const file = e.dataTransfer.files[0];
         if (file && file.type === "application/pdf") {
           nameDisplay.textContent = `✅ 已上傳：${file.name}`;
@@ -113,23 +112,32 @@
       });
     }
 
-    async function mergePDFs() {
-      if (!frontFile || !backFile) {
-        alert("請先上傳正面與反面 PDF！");
+    async function smartMerge() {
+      if (!frontFile) {
+        alert("請至少上傳一個 PDF 檔！");
         return;
       }
 
-      const frontBytes = await frontFile.arrayBuffer();
-      const backBytes = await backFile.arrayBuffer();
+      if (!backFile) {
+        // 單一 PDF 模式（自動判斷正反面）
+        await mergeSinglePDF(frontFile);
+      } else {
+        // 雙 PDF 模式（正反 PDF 各一）
+        await mergeTwoPDFs(frontFile, backFile);
+      }
+    }
+
+    async function mergeTwoPDFs(front, back) {
+      const frontBytes = await front.arrayBuffer();
+      const backBytes = await back.arrayBuffer();
 
       const frontPdf = await PDFLib.PDFDocument.load(frontBytes);
       const backPdf = await PDFLib.PDFDocument.load(backBytes);
       const mergedPdf = await PDFLib.PDFDocument.create();
 
       const frontPages = await mergedPdf.copyPages(frontPdf, frontPdf.getPageIndices());
-      // const backPages = await mergedPdf.copyPages(backPdf, backPdf.getPageIndices());
       const backPagesOrig = await mergedPdf.copyPages(backPdf, backPdf.getPageIndices());
-      const backPages = backPagesOrig.reverse(); // 從後往前
+      const backPages = backPagesOrig.reverse();
 
       const maxLen = Math.max(frontPages.length, backPages.length);
       for (let i = 0; i < maxLen; i++) {
@@ -138,14 +146,66 @@
       }
 
       const mergedBytes = await mergedPdf.save();
+      downloadMergedPDF(mergedBytes, front.name.replace(/\.pdf$/i, "") + "_merged.pdf");
+    }
+
+    // async function mergeSinglePDF(file) {
+    //   const pdfBytes = await file.arrayBuffer();
+    //   const inputPdf = await PDFLib.PDFDocument.load(pdfBytes);
+    //   const mergedPdf = await PDFLib.PDFDocument.create();
+
+    //   const totalPages = inputPdf.getPageCount();
+    //   if (totalPages % 2 !== 0) {
+    //     alert("頁數應為偶數，請確認正反頁都已掃描！");
+    //     return;
+    //   }
+
+    //   const half = totalPages / 2;
+    //   const frontIndices = [...Array(half).keys()];
+    //   const backIndices = [...Array(half).keys()].map(i => totalPages - 1 - i);
+
+    //   const frontPages = await mergedPdf.copyPages(inputPdf, frontIndices);
+    //   const backPages = await mergedPdf.copyPages(inputPdf, backIndices);
+
+    //   for (let i = 0; i < half; i++) {
+    //     mergedPdf.addPage(frontPages[i]);
+    //     mergedPdf.addPage(backPages[i]);
+    //   }
+
+    //   const mergedBytes = await mergedPdf.save();
+    //   downloadMergedPDF(mergedBytes, file.name.replace(/\.pdf$/i, "") + "_merged.pdf");
+    // }
+    async function mergeSinglePDF(file) {
+  const pdfBytes = await file.arrayBuffer();
+  const inputPdf = await PDFLib.PDFDocument.load(pdfBytes);
+  const mergedPdf = await PDFLib.PDFDocument.create();
+
+  const totalPages = inputPdf.getPageCount();
+  const half = Math.ceil(totalPages / 2);
+
+  const frontIndices = [...Array(half).keys()]; // 0, 1, 2...
+  const backIndices = [...Array(totalPages - half).keys()].map(i => totalPages - 1 - i); // 從最後頁往前
+
+  const frontPages = await mergedPdf.copyPages(inputPdf, frontIndices);
+  const backPages = await mergedPdf.copyPages(inputPdf, backIndices);
+
+  const maxLen = Math.max(frontPages.length, backPages.length);
+  for (let i = 0; i < maxLen; i++) {
+    if (i < frontPages.length) mergedPdf.addPage(frontPages[i]);
+    if (i < backPages.length) mergedPdf.addPage(backPages[i]);
+  }
+
+  const mergedBytes = await mergedPdf.save();
+  downloadMergedPDF(mergedBytes, file.name.replace(/\.pdf$/i, "") + "_merged.pdf");
+}
+
+
+    function downloadMergedPDF(mergedBytes, filename) {
       const blob = new Blob([mergedBytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
-
       const a = document.createElement("a");
       a.href = url;
-      const frontName = frontFile.name.replace(/\.pdf$/i, "");
-      a.download = `${frontName}_merged.pdf`;
-      // a.download = "flip_merge.pdf";
+      a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
     }
